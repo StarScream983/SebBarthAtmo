@@ -1,9 +1,9 @@
 # Volumetric Atmospheric Scattering Shader for UE5.3.2
-This an Adaptation of Sebastien Lague and BarthPaleologue's Atmospheric Scattering shader. \n
-https://github.com/BarthPaleologue/volumetric-atmospheric-scattering/tree/main \n
-https://www.youtube.com/watch?v=DxfEbulyFcY \n
-I made it to understand and study Raymarching and volumetric rendering.
-This is a raw adaptation and could be drastically improved, in due time.
+This an Adaptation of Sebastien Lague and BarthPaleologue's Atmospheric Scattering shader. <br>
+https://github.com/BarthPaleologue/volumetric-atmospheric-scattering/tree/main <br>
+https://www.youtube.com/watch?v=DxfEbulyFcY <br>
+I made it to understand and study Raymarching and volumetric rendering. <br>
+This is a raw adaptation and could be drastically improved, in due time. <br>
 I made an example Map in the plugin.
 
 Discord: https://discord.gg/uZAbCGqHB7
