@@ -1,0 +1,173 @@
+#define VIEW_RAY_STEPs 32
+#define OPTICAL_DEPTH_STEPs 16
+#define PI 3.1415926535897932
+#define redWaveLength 700
+#define greenWaveLength 530
+#define blueWaveLength 440
+#define G 0.77 /* mie scattering direction, or how big the blob around the sun is */
+#define GG 0.5929
+
+struct RMStruct
+{
+	float3 _campos;
+	float3 _sunDir;
+	float3 _planetPos; //Object Position
+	float _planetRadius;
+	float _atmoRadius;
+	float _falloff; // controls exponential opacity falloff
+	float _sunIntensity; // controls atmosphere overall brightness
+	float _scatteringStrength; // controls color dispersion
+	float _densityMod; // density of the atmosphere
+	float _depth; // Scene Depth
+	float _minOpD; // minimum depth distance before opacity is greater than 0.
+
+	float _coeffMod;
+
+	// Init the Struct
+	void Init(float3 cp, float3 sd, float3 pp, float pr, float ar, float fof, float si, float ss, float dm, float dpth, float cm) {
+		_campos = cp;
+		_sunDir = sd;
+		_planetPos = pp;
+		_planetRadius = pr;
+		_atmoRadius = ar;
+		_falloff = fof;
+		_sunIntensity = si;
+		_scatteringStrength = ss;
+		_densityMod = dm;
+		_depth = dpth;
+		_minOpD = 10000.;
+
+		_coeffMod = cm;
+	};
+
+	// sphere of size ra centered at point ce
+	bool SphIntersect(float3 ro, float3 rd, float3 ce, float ra, out float t0, out float t1)
+	{
+		float3 oc = ro - ce;
+		float a = 1.;
+		float b = 2. * dot( oc, rd );
+		float c = dot( oc, oc ) - ra*ra;
+		float h = b*b - 4.*a*c;
+		if( h<0.0 ) {
+			t0 = -1.;
+			t1 = -1.;
+			return false;
+		} // no intersection
+		h = sqrt( h );
+		float r0 = (-b-h)/2.*a;
+		float r1 = (-b+h)/2.*a;
+		t0 = min(r0, r1);
+		t1 = max(r0, r1);
+		return (t1 >= 0.);		
+		// return float2( -b-h, -b+h );
+	}
+	
+	float densityAtPoint(float3 densitySamplePoint) {
+		float heightAboveSurface = length(densitySamplePoint - _planetPos) - _planetRadius; // actual height above surface
+		float height01 = heightAboveSurface / (1.8*(_atmoRadius - _planetRadius)); // normalized height between 0 and 1
+		
+		float localDensity = _densityMod * exp(-height01 * _falloff); // density with exponential falloff
+		localDensity *= (1.0 - height01); // make it 0 at maximum height
+
+		return localDensity;
+	}
+
+	float opticalDepth(float3 rayOrigin, float3 rayDir, float rayLength) {
+
+		float stepSize = rayLength / (float(OPTICAL_DEPTH_STEPs) - 1.0); // ray length between sample points
+		
+		float3 densitySamplePoint = rayOrigin; // that's where we start
+		float accumulatedOpticalDepth = 0.0;
+
+		for(int i = 0 ; i < OPTICAL_DEPTH_STEPs ; i++) {
+			float localDensity = densityAtPoint(densitySamplePoint); // we get the density at the sample point
+
+			accumulatedOpticalDepth += localDensity * stepSize; // linear approximation : density is constant between sample points
+
+			densitySamplePoint += rayDir * stepSize; // we move the sample point
+		}
+
+		return accumulatedOpticalDepth;
+	}
+
+	float3 calculateLight(float3 rayOrigin, float3 rayDir, float rayLength) {
+
+		float3 samplePoint = rayOrigin; // first sampling point coming from camera ray
+
+		//float3 sunDir = normalize(sunPosition - planetPosition); // direction to the light source
+		float3 sunDir = _sunDir;
+		
+		float3 wavelength = float3(redWaveLength, greenWaveLength, blueWaveLength); // the wavelength that will be scattered (rgb so we get everything)
+		float3 scatteringCoeffs = pow(1063.0 / wavelength.xyz, 4.0) * _scatteringStrength; // the scattering is inversely proportional to the fourth power of the wave length;
+		// about the 1063, it is just a constant that makes the scattering look good
+		scatteringCoeffs /= _planetRadius; // Scale invariance by Yincognyto https://github.com/BarthPaleologue/volumetric-atmospheric-scattering/issues/6#issuecomment-1432409930
+		scatteringCoeffs /= _coeffMod;
+
+		float stepSize = rayLength / (float(VIEW_RAY_STEPs) - 1.0); // the ray length between sample points
+
+		float3 inScatteredLight = 0.0; // amount of light scattered for each channel
+
+		for (int i = 0 ; i < VIEW_RAY_STEPs ; i++) {
+			//DEPTH TEST HERE
+			//if(length(samplePoint-_campos) > _depth) break;
+
+			float sunRayLengthInAtm = _atmoRadius - length(samplePoint - _planetPos); // distance traveled by light through atmosphere from light source
+			float t0, t1;
+			if(SphIntersect(samplePoint, sunDir, _planetPos, _atmoRadius, t0, t1)) {
+				sunRayLengthInAtm = t1;
+			}
+
+			float sunRayOpticalDepth = opticalDepth(samplePoint, sunDir, sunRayLengthInAtm); // scattered from the sun to the point
+			
+			float viewRayLengthInAtm = stepSize * float(i); // distance traveled by light through atmosphere from sample point to cameraPosition
+			float viewRayOpticalDepth = opticalDepth(samplePoint, -rayDir, viewRayLengthInAtm); // scattered from the point to the camera
+			
+			float3 transmittance = exp(-(sunRayOpticalDepth + viewRayOpticalDepth) * scatteringCoeffs); // exponential scattering with coefficients
+			
+			float localDensity = densityAtPoint(samplePoint); // density at sample point
+
+			inScatteredLight += localDensity * transmittance * scatteringCoeffs * stepSize; // add the resulting amount of light scattered toward the camera
+			
+			samplePoint += rayDir * stepSize; // move sample point along view ray
+    	}
+
+		// scattering depends on the direction of the light ray and the view ray : it's the rayleigh phase function
+		// https://glossary.ametsoc.org/wiki/Rayleigh_phase_function
+		float costheta = dot(rayDir, sunDir);
+		float phaseRayleigh = 3.0 / (16.0 * PI) * (1.0 + costheta * costheta);
+		float phaseMie = 0.; //(3.*(GG+1.)*(1.+costheta*costheta))/(8.*PI*(2.+GG)*pow(1.+GG-2.*G*costheta, 1.5));
+		
+		inScatteredLight *= (phaseRayleigh+phaseMie); // apply rayleigh phase
+		inScatteredLight *= _sunIntensity; // multiply by the intensity of the sun
+
+		return inScatteredLight;
+	}
+
+	float3 scatter(float3 originalColor, float3 rayOrigin, float3 rayDir, float maximumDistance) {
+		float impactPoint, escapePoint;
+		if (!(SphIntersect(rayOrigin, rayDir, _planetPos, _atmoRadius, impactPoint, escapePoint))) {
+			return originalColor; // if not intersecting with atmosphere, return original color
+		}
+
+		impactPoint = max(0.0, impactPoint); // cannot be negative (the ray starts where the camera is in such a case)
+		escapePoint = min(maximumDistance, escapePoint); // occlusion with other scene objects
+
+		float distanceThroughAtmosphere = max(0.0, escapePoint - impactPoint); // probably doesn't need the max but for the sake of coherence the distance cannot be negative
+		
+		float3 firstPointInAtmosphere = rayOrigin + rayDir * impactPoint; // the first atmosphere point to be hit by the ray
+
+		float3 light = calculateLight(firstPointInAtmosphere, rayDir, distanceThroughAtmosphere); // calculate scattering
+		
+		return originalColor * (1.0 - light) + light; // blending scattered color with original color
+	}
+		
+};
+RMStruct RMS;
+RMS.Init(campos, lvec, objpos, PlanetRadius, AtmoRadius, Falloff, SunIntensity, Strength, DensityModifier, depth, coeffMod);
+
+float alpha = saturate(depth / minOpD);
+float op = alpha * 0.3;
+
+float3 Col = 0.; //float3(0.1, 0.1, 0.44);
+float3 finalCol = RMS.scatter(Col, campos, camvec, 1000000000000.);
+return float4(finalCol, op);

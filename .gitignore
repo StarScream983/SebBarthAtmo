@@ -1,0 +1,80 @@
+# Ignore all files by default, but scan all directories.
+*
+!*/
+
+# Do not ignore git files in the root of the repo.
+!/.git*
+!/.gitignore
+!/.gitattributes
+!*.md
+
+# Do not ignore current project's `.uproject`.
+!/*.uproject
+
+# Do not ignore source, config and plugins dirs.
+!/Source/**
+!/Config/**
+!/Plugins/**
+!/Shaders/**
+!/Resources/**
+
+# Only allow .uasset and .umap files from /Content dir.
+# They're tracked by git-lfs, don't forget to track other
+# files if adding them here.
+!/Content/**/*.uasset
+!/Content/**/*.umap
+
+# Allow any files from /RawContent dir.
+# Any file in /RawContent dir will be managed by git lfs.
+!/RawContent/**/*
+
+# Project Temporary Folders
+**/Binaries/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
+**/__ExternalActors__/
+**/__ExternalObjects__/
+
+###############################
+# OS/platform generated files.
+
+# Windows
+ehthumbs.db
+Thumbs.db
+
+# Mac OS X
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+
+# vim
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+
+# OS/platform generated files.
+###############################
+
+# Ignore VS Code settings
+.vscode
+*.code-workspace
+
+# Ignore Visual Studio files
+.vs
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
