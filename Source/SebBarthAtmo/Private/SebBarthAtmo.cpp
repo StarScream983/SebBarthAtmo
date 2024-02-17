@@ -9,7 +9,7 @@ void FSebBarthAtmoModule::StartupModule()
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 	// Maps virtual shader source directory to actual shaders directory on disk.
 	FString ShaderDirectory = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("SebBarthAtmo/Shaders/Private"));
-	AddShaderSourceDirectoryMapping("/Shaders", ShaderDirectory);
+	AddShaderSourceDirectoryMapping("/SBAtmo", ShaderDirectory);
 }
 
 void FSebBarthAtmoModule::ShutdownModule()
