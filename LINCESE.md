@@ -1,5 +1,5 @@
                                  Apache License
-                           Version 1.1.0, February 2024
+                           Version 1.0.2, February 2024
                         http://www.apache.org/licenses/
 
    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
